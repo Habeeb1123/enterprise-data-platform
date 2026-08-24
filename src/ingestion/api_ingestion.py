@@ -1,8 +1,10 @@
 from pathlib import Path
 from datetime import datetime
 import json
-import logging
+
 import requests
+
+from src.logging_config import get_logger
 
 
 API_URL = "https://api.open-meteo.com/v1/forecast"
@@ -16,49 +18,62 @@ PARAMS = {
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-
 RAW_DATA_DIR = PROJECT_ROOT / "data" / "raw"
-
-LOG_DIR = PROJECT_ROOT / "logs"
-
 
 RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-LOG_DIR.mkdir(parents=True, exist_ok=True)
-
-
-logging.basicConfig(
-    filename=LOG_DIR / "ingestion.log",
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(message)s",
-)
+logger = get_logger(__name__)
 
 
 def fetch_weather_data() -> dict:
-    logging.info("Starting API request")
+    logger.info("Starting API request")
 
-    response = requests.get(
-        API_URL,
-        params=PARAMS,
-        timeout=30,
+    try:
+        response = requests.get(
+            API_URL,
+            params=PARAMS,
+            timeout=30,
+        )
+
+        response.raise_for_status()
+
+    except requests.Timeout:
+        logger.exception("API request timed out")
+        raise
+
+    except requests.ConnectionError:
+        logger.exception("Failed to connect to weather API")
+        raise
+
+    except requests.HTTPError:
+        logger.exception("Weather API returned an HTTP error")
+        raise
+
+    except requests.RequestException:
+        logger.exception("Unexpected API request error")
+        raise
+
+    logger.info(
+        "API request successful with status code %s",
+        response.status_code,
     )
-
-    response.raise_for_status()
-
-    logging.info("API request successful")
 
     return response.json()
 
 
 def save_raw_data(data: dict) -> Path:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
     output_file = RAW_DATA_DIR / f"weather_{timestamp}.json"
 
-    with output_file.open("w", encoding="utf-8") as file:
-        json.dump(data, file, indent=2)
+    try:
+        with output_file.open("w", encoding="utf-8") as file:
+            json.dump(data, file, indent=2)
 
-    logging.info("Raw data saved to %s", output_file)
+    except OSError:
+        logger.exception("Failed to save raw weather data")
+        raise
+
+    logger.info("Raw weather data saved to %s", output_file)
 
     return output_file
 
@@ -66,15 +81,16 @@ def save_raw_data(data: dict) -> Path:
 def main() -> None:
     try:
         data = fetch_weather_data()
-
         output_file = save_raw_data(data)
+
+        logger.info("API ingestion completed successfully")
 
         print(f"SUCCESS: Raw data saved to {output_file}")
 
-    except requests.RequestException as exc:
-        logging.exception("API request failed")
-
-        print(f"ERROR: {exc}")
+    except Exception as exc:
+        logger.exception("API ingestion failed")
+        print(f"ERROR: API ingestion failed: {exc}")
+        raise
 
 
 if __name__ == "__main__":
