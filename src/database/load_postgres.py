@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import pandas as pd
-from sqlalchemy import BigInteger, DateTime, Float
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from src.database.connection import get_engine
@@ -17,15 +17,13 @@ logger = get_logger(__name__)
 
 
 def load_weather_data() -> None:
-    logger.info("Starting PostgreSQL load")
+    logger.info("Starting PostgreSQL upsert")
 
     try:
         if not PROCESSED_FILE.exists():
             raise FileNotFoundError(
                 f"Processed weather file not found: {PROCESSED_FILE}"
             )
-
-        logger.info("Reading processed data from %s", PROCESSED_FILE)
 
         dataframe = pd.read_csv(
             PROCESSED_FILE,
@@ -36,40 +34,47 @@ def load_weather_data() -> None:
             raise ValueError("Processed weather dataset is empty.")
 
         logger.info(
-            "Processed dataset loaded successfully with %d rows",
+            "Processed dataset loaded with %d rows",
             len(dataframe),
         )
 
-        logger.info("Creating PostgreSQL database connection")
-
         engine = get_engine()
 
-        logger.info(
-            "Loading data into PostgreSQL table: %s",
-            TABLE_NAME,
+        upsert_sql = text(
+            """
+            INSERT INTO weather_hourly (
+                timestamp,
+                temperature_2m,
+                relative_humidity_2m,
+                precipitation
+            )
+            VALUES (
+                :timestamp,
+                :temperature_2m,
+                :relative_humidity_2m,
+                :precipitation
+            )
+            ON CONFLICT (timestamp)
+            DO UPDATE SET
+                temperature_2m = EXCLUDED.temperature_2m,
+                relative_humidity_2m = EXCLUDED.relative_humidity_2m,
+                precipitation = EXCLUDED.precipitation;
+            """
         )
 
-        dataframe.to_sql(
-            TABLE_NAME,
-            con=engine,
-            if_exists="replace",
-            index=False,
-            dtype={
-                "timestamp": DateTime(),
-                "temperature_2m": Float(),
-                "relative_humidity_2m": BigInteger(),
-                "precipitation": Float(),
-            },
-        )
+        records = dataframe.to_dict(orient="records")
+
+        with engine.begin() as connection:
+            connection.execute(upsert_sql, records)
 
         logger.info(
-            "Successfully loaded %d rows into %s",
+            "Successfully upserted %d rows into %s",
             len(dataframe),
             TABLE_NAME,
         )
 
         print(
-            f"SUCCESS: Loaded {len(dataframe)} rows into {TABLE_NAME}"
+            f"SUCCESS: Upserted {len(dataframe)} rows into {TABLE_NAME}"
         )
 
     except FileNotFoundError:
@@ -81,7 +86,7 @@ def load_weather_data() -> None:
         raise
 
     except SQLAlchemyError:
-        logger.exception("PostgreSQL database operation failed")
+        logger.exception("PostgreSQL upsert failed")
         raise
 
     except Exception:
