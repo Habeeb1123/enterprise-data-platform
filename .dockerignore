@@ -1,9 +1,11 @@
 .venv/
 __pycache__/
 *.pyc
+.git/
+.gitignore
 .env
-.ipynb_checkpoints/
+logs/
 data/raw/
 data/processed/
-*.log
-logs/.pytest_cache/
+.pytest_cache/
+.ipynb_checkpoints/
