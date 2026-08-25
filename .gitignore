@@ -3,7 +3,14 @@ __pycache__/
 *.pyc
 .env
 .ipynb_checkpoints/
+
+# Generated pipeline data
 data/raw/
 data/processed/
+
+# Runtime logs and monitoring output
+logs/
 *.log
-logs/.pytest_cache/
+
+# Pytest cache
+.pytest_cache/
