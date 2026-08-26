@@ -1,8 +1,8 @@
 # Enterprise Data Platform
 
-An end-to-end, production-style data engineering and analytics platform that ingests hourly weather data from an external API, transforms and validates the data, loads it idempotently into PostgreSQL, creates an SQL analytics layer, monitors pipeline execution, orchestrates data workflows, and exposes analytical results through an interactive Power BI dashboard.
+An end-to-end, production-style data engineering and analytics platform that ingests hourly weather data from an external API, transforms and validates the data, loads it idempotently into PostgreSQL, creates an SQL analytics layer, orchestrates workflows with Apache Airflow, monitors pipeline execution, validates changes through automated testing and CI/CD, and exposes analytical results through an interactive Power BI dashboard.
 
-The project demonstrates practical data engineering concepts including API ingestion, ETL pipeline development, data transformation, PostgreSQL, SQL analytics, automated data-quality testing, Docker, Apache Airflow, pipeline monitoring, logging, Git version control, and business intelligence reporting.
+The project demonstrates practical data engineering concepts including API ingestion, ETL pipeline development, data transformation, PostgreSQL, SQL analytics, automated data-quality testing, Docker, Apache Airflow, GitHub Actions CI/CD, pipeline monitoring, structured logging, Git version control, and business intelligence reporting.
 
 ---
 
@@ -26,24 +26,25 @@ Cleaned Weather Dataset
         v
 PostgreSQL
         |
-        +----------------------+
-        |                      |
-        v                      v
-Analytics SQL Views      Data Quality Tests
-        |                      |
-        v                      |
-Power BI Dashboard             |
-                               |
-        +----------------------+
+        +-------------------------+
+        |                         |
+        v                         v
+Analytics SQL Views       Data Quality Tests
+        |                         |
+        v                         |
+Power BI Dashboard                |
+                                  |
+        +-------------------------+
         |
         v
 Pipeline Monitoring
 
 Orchestration: Apache Airflow
 Infrastructure: Docker Compose
+CI/CD: GitHub Actions
 ```
 
-The platform separates ingestion, transformation, storage, analytics, testing, monitoring, orchestration, and visualisation into distinct components.
+The platform separates ingestion, transformation, storage, analytics, testing, monitoring, orchestration, visualisation, and continuous integration into distinct components.
 
 ---
 
@@ -76,6 +77,11 @@ The platform separates ingestion, transformation, storage, analytics, testing, m
 - Docker Compose
 - Apache Airflow
 
+### CI/CD
+
+- GitHub Actions
+- Automated test execution
+
 ### Monitoring & Logging
 
 - Python logging
@@ -100,8 +106,12 @@ The platform separates ingestion, transformation, storage, analytics, testing, m
 ```text
 enterprise-data-platform/
 |
+|-- .github/
+|   `-- workflows/
+|       `-- ci.yml
+|
 |-- dags/
-|   `-- ...
+|   `-- weather_pipeline_dag.py
 |
 |-- data/
 |   |-- raw/
@@ -115,10 +125,10 @@ enterprise-data-platform/
 |
 |-- sql/
 |   |-- create_weather_analytics_views.sql
+|   |-- create_weather_table.sql
 |   `-- weather_analytics.sql
 |
 |-- src/
-|   |
 |   |-- database/
 |   |   |-- connection.py
 |   |   `-- load_postgres.py
@@ -130,22 +140,27 @@ enterprise-data-platform/
 |   |   |-- health_report.py
 |   |   `-- pipeline_monitor.py
 |   |
-|   `-- transformation/
-|       `-- clean_data.py
+|   |-- transformation/
+|   |   `-- clean_data.py
+|   |
+|   `-- logging_config.py
 |
 |-- tests/
 |   |-- test_database.py
 |   `-- test_ingestion.py
 |
-|-- .env
+|-- .dockerignore
+|-- .env.example
 |-- .gitignore
+|-- Dockerfile
+|-- Dockerfile.airflow
 |-- docker-compose.yml
 |-- requirements.txt
 |-- run_pipeline.py
 `-- README.md
 ```
 
-Generated raw and processed datasets, local environment variables, logs, caches, and other runtime artifacts can be excluded from version control where appropriate.
+Generated raw and processed datasets, runtime logs, local environment variables, Python caches, and test caches are excluded from version control.
 
 ---
 
@@ -160,7 +175,7 @@ The complete pipeline follows the following sequence:
 2. Raw Data Persistence
        |
        v
-3. Data Transformation
+3. Data Transformation & Validation
        |
        v
 4. PostgreSQL Upsert
@@ -177,6 +192,8 @@ The complete pipeline follows the following sequence:
        v
 8. Power BI Analytics
 ```
+
+Apache Airflow provides workflow orchestration, while GitHub Actions provides automated CI validation for repository changes.
 
 ---
 
@@ -196,12 +213,6 @@ Each successful API response is stored as a timestamped JSON file under:
 data/raw/
 ```
 
-Example:
-
-```text
-weather_20260825_231023.json
-```
-
 Persisting the original API response provides a raw-data layer and allows transformations to be reproduced independently from the external API.
 
 ---
@@ -214,7 +225,7 @@ The transformation component is located at:
 src/transformation/clean_data.py
 ```
 
-It selects the latest raw weather file, extracts the hourly observations, validates the structure, and converts the source data into a clean tabular dataset.
+It selects the latest raw weather file, extracts hourly observations, validates the source structure, and converts the data into a clean tabular dataset.
 
 The transformed dataset contains:
 
@@ -231,7 +242,7 @@ The cleaned dataset is written to:
 data/processed/weather_cleaned.csv
 ```
 
-Transformation logic includes checks for:
+Transformation and quality checks cover:
 
 - valid timestamps
 - required columns
@@ -273,7 +284,7 @@ relative_humidity_2m
 precipitation
 ```
 
-Database credentials are loaded from environment variables rather than being hard-coded into the source code.
+Database credentials are loaded from environment variables rather than being hard-coded into source code.
 
 ---
 
@@ -350,7 +361,7 @@ Extends the hourly dataset with analytical attributes including:
 - temperature category
 - precipitation category
 
-Temperature observations are categorised into groups such as:
+Temperature observations can be categorised into:
 
 ```text
 Cold
@@ -359,7 +370,7 @@ Mild
 Warm
 ```
 
-Precipitation observations are categorised into groups such as:
+Precipitation observations can be categorised into:
 
 ```text
 Dry
@@ -373,8 +384,6 @@ Heavy Rain
 ## Automatic Analytics View Creation
 
 Analytics views are automatically created or refreshed after the PostgreSQL data load.
-
-The database load therefore performs two related operations:
 
 ```text
 Weather Data Upsert
@@ -391,13 +400,11 @@ This ensures that the analytical layer remains available after pipeline executio
 
 The project uses `pytest` for automated validation.
 
-The test suite currently contains:
+The current test suite contains:
 
 ```text
 26 tests
 ```
-
-The tests cover both the file-based pipeline and PostgreSQL database layer.
 
 ### Ingestion and Transformation Tests
 
@@ -451,13 +458,13 @@ A successful test run reports:
 
 ## Complete Pipeline Execution
 
-The entire workflow can be executed from the project root using:
+The complete workflow can be executed from the project root with:
 
 ```powershell
 python run_pipeline.py
 ```
 
-The pipeline automatically performs:
+The pipeline performs:
 
 ```text
 API Ingestion
@@ -491,13 +498,13 @@ Pipeline execution is monitored using:
 src/monitoring/pipeline_monitor.py
 ```
 
-Pipeline run metadata is recorded in:
+Pipeline run metadata is recorded locally in:
 
 ```text
 logs/pipeline_runs.jsonl
 ```
 
-Each execution record can include information such as:
+Execution metadata can include:
 
 - execution status
 - start timestamp
@@ -506,7 +513,7 @@ Each execution record can include information such as:
 - failed pipeline step
 - process exit code
 
-Example structure:
+Example:
 
 ```json
 {
@@ -549,8 +556,6 @@ The report summarises operational metrics including:
 - last failed execution
 - most recent failed step
 
-This adds an operational monitoring layer beyond standard application logging.
-
 ---
 
 ## Docker Infrastructure
@@ -566,21 +571,21 @@ Apache Airflow Scheduler
 Apache Airflow DAG Processor
 ```
 
-The PostgreSQL service includes a health check to verify database availability.
+PostgreSQL includes a health check to verify database availability.
 
-Check running containers with:
-
-```powershell
-docker compose ps
-```
-
-Start the environment with:
+Start the environment:
 
 ```powershell
 docker compose up -d
 ```
 
-Stop the environment with:
+Check running containers:
+
+```powershell
+docker compose ps
+```
+
+Stop the environment:
 
 ```powershell
 docker compose down
@@ -590,19 +595,45 @@ docker compose down
 
 ## Apache Airflow Orchestration
 
-Apache Airflow provides the orchestration layer for the project.
+Apache Airflow provides the workflow orchestration layer.
 
-The Airflow environment runs through Docker Compose and includes the components required to schedule and manage data workflows.
-
-Airflow provides capabilities such as:
+The Airflow environment runs through Docker Compose and provides:
 
 - workflow scheduling
-- dependency management
+- task dependency management
 - task execution
 - operational visibility
 - pipeline run history
 
-When the local environment is running, the Airflow web interface is exposed through the configured Docker port.
+The project includes the Airflow DAG:
+
+```text
+dags/weather_pipeline_dag.py
+```
+
+When the local Docker environment is running, the Airflow web interface is exposed through the configured Docker port.
+
+---
+
+## GitHub Actions CI/CD
+
+Continuous integration is implemented using:
+
+```text
+.github/workflows/ci.yml
+```
+
+GitHub Actions automatically validates repository changes by running the project's automated test workflow.
+
+The CI pipeline provides:
+
+- automated validation of repository changes
+- repeatable test execution
+- PostgreSQL-backed integration testing
+- early detection of pipeline regressions
+- visible pass/fail status on GitHub
+
+The current workflow is passing successfully.
 
 ---
 
@@ -618,7 +649,7 @@ The dashboard connects to the PostgreSQL analytics layer rather than relying dir
 
 ### Dashboard KPIs
 
-The report includes high-level KPI cards for:
+The report includes KPI cards for:
 
 - Total Observations
 - Average Temperature
@@ -642,7 +673,7 @@ The temperature trend compares:
 - minimum temperature
 - maximum temperature
 
-The category visualisations provide an immediate breakdown of weather conditions across hourly observations.
+The category visualisations provide a breakdown of weather conditions across hourly observations.
 
 ---
 
@@ -660,7 +691,7 @@ Average relative humidity: 79.92%
 Total precipitation: 22.60 mm
 ```
 
-These metrics are exposed through the PostgreSQL analytics views and Power BI dashboard.
+These metrics are exposed through PostgreSQL analytics views and the Power BI dashboard.
 
 ---
 
@@ -680,25 +711,41 @@ Logging captures events including:
 - pipeline completion
 - pipeline failures
 
-Exceptions are logged and re-raised where appropriate so failures remain visible to both developers and orchestration systems.
+Exceptions are logged and re-raised where appropriate so failures remain visible to developers and orchestration systems.
 
 ---
 
 ## Environment Configuration
 
-Sensitive database configuration is stored in a local `.env` file.
+Sensitive configuration is stored locally in:
 
-Example:
+```text
+.env
+```
+
+The repository provides a safe configuration template:
+
+```text
+.env.example
+```
+
+Create your local environment configuration by copying the template and replacing the placeholder values.
+
+Required variables include:
 
 ```text
 DB_HOST=localhost
 DB_PORT=5433
 DB_NAME=datacareer_db
-DB_USER=your_username
-DB_PASSWORD=your_password
+DB_USER=datacareer_user
+DB_PASSWORD=change_me
+DB_PASSWORD_URLENC=change_me
+AIRFLOW_JWT_SECRET=change_me_to_a_long_random_secret
 ```
 
-The `.env` file should never be committed to GitHub.
+`DB_PASSWORD_URLENC` should contain the URL-encoded version of the database password when special characters are present.
+
+The real `.env` file is excluded by `.gitignore` and must never be committed to GitHub.
 
 ---
 
@@ -707,11 +754,11 @@ The `.env` file should never be committed to GitHub.
 Clone the repository:
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/Habeeb1123/enterprise-data-platform.git
 cd enterprise-data-platform
 ```
 
-Create a virtual environment:
+Create a Python virtual environment:
 
 ```powershell
 python -m venv .venv
@@ -723,13 +770,13 @@ Activate it on Windows:
 .venv\Scripts\activate
 ```
 
-Install Python dependencies:
+Install the required dependencies:
 
 ```powershell
 python -m pip install -r requirements.txt
 ```
 
-Create the local `.env` file with the required database configuration.
+Create the local environment file from `.env.example` and replace its placeholder values with your local configuration.
 
 Start the Docker infrastructure:
 
@@ -743,7 +790,7 @@ Verify the containers:
 docker compose ps
 ```
 
-Then run the pipeline:
+Run the pipeline:
 
 ```powershell
 python run_pipeline.py
@@ -771,10 +818,22 @@ python -m pytest tests -v
 python -m src.monitoring.health_report
 ```
 
+### Start Docker services
+
+```powershell
+docker compose up -d
+```
+
 ### Check Docker services
 
 ```powershell
 docker compose ps
+```
+
+### Stop Docker services
+
+```powershell
+docker compose down
 ```
 
 ### Query PostgreSQL
@@ -783,11 +842,30 @@ docker compose ps
 docker compose exec postgres psql -U datacareer_user -d datacareer_db
 ```
 
-### Check Git repository status
+### Check repository status
 
 ```powershell
 git status
 ```
+
+---
+
+## Security and Repository Hygiene
+
+The repository follows several basic security and source-control practices:
+
+- real environment credentials are excluded from Git
+- `.env` is ignored
+- `.env.example` contains placeholder configuration only
+- database passwords are supplied through environment variables
+- Airflow authentication secrets are supplied through environment variables
+- generated raw data is ignored
+- generated processed data is ignored
+- runtime logs are ignored
+- Python caches are ignored
+- pytest caches are ignored
+
+No production or personal credentials should be committed to this repository.
 
 ---
 
@@ -804,12 +882,16 @@ This project demonstrates practical experience with:
 - SQL analytical modelling
 - reusable SQL views
 - automated data-quality testing
+- integration testing
 - Docker containerisation
+- Docker Compose
 - Apache Airflow orchestration
+- GitHub Actions CI/CD
 - structured logging
 - pipeline monitoring
 - operational health reporting
 - Power BI analytics
+- environment-based configuration
 - Git and GitHub workflows
 - modular Python project design
 
@@ -835,9 +917,11 @@ Implemented:
 - [x] Pipeline run monitoring
 - [x] Pipeline health reporting
 - [x] Docker Compose infrastructure
-- [x] Apache Airflow environment
+- [x] Apache Airflow orchestration
+- [x] GitHub Actions CI/CD
 - [x] Power BI analytics dashboard
 - [x] Interactive dashboard date filtering
+- [x] Environment configuration template
 - [x] Git/GitHub version control
 
 ---
@@ -846,16 +930,17 @@ Implemented:
 
 Possible extensions include:
 
-1. GitHub Actions CI/CD
-2. Cloud deployment
-3. Cloud object storage for the raw-data layer
-4. Managed PostgreSQL or cloud data warehouse integration
-5. Automated Power BI refresh
-6. Alerting for failed pipeline runs
-7. Historical weather ingestion across larger time ranges
-8. Additional Airflow workflow monitoring
-9. Data lineage and metadata tracking
-10. Infrastructure as Code
+1. Cloud deployment
+2. Cloud object storage for the raw-data layer
+3. Managed PostgreSQL or cloud data warehouse integration
+4. Automated Power BI refresh
+5. Alerting for failed pipeline runs
+6. Historical weather ingestion across larger time ranges
+7. Additional Airflow workflow monitoring
+8. Data lineage and metadata tracking
+9. Infrastructure as Code
+
+These are optional extensions rather than requirements for the current local portfolio implementation.
 
 ---
 
